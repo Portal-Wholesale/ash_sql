@@ -4228,7 +4228,8 @@ defmodule AshSql.Expr do
   defp maybe_type_expr(query, expr, bindings, embedded?, acc, type) do
     skip? =
       no_cast_for_native_value?(expr, type) or
-        (is_struct(expr, Ash.Query.Ref) and bindings[:skip_cast_for_ref?])
+        (is_struct(expr, Ash.Query.Ref) and bindings[:skip_cast_for_ref?] == true) or
+        integer_attribute_ref?(expr, type)
 
     if type && !skip? do
       if get_path_array_type?(type) do
@@ -4282,6 +4283,17 @@ defmodule AshSql.Expr do
   end
 
   defp no_cast_for_native_value?(_, _), do: false
+
+  # An integer attribute already compares with any integer type, and casting the
+  # column (e.g. `int4_col::bigint`) stops PostgreSQL from using its index.
+  defp integer_attribute_ref?(
+         %Ash.Query.Ref{attribute: %Ash.Resource.Attribute{type: Ash.Type.Integer}},
+         type
+       ) do
+    unwrap_type_for_native_check(type) == Ash.Type.Integer
+  end
+
+  defp integer_attribute_ref?(_, _), do: false
 
   defp unwrap_type_for_native_check({type, _}), do: type
   defp unwrap_type_for_native_check(type), do: type
